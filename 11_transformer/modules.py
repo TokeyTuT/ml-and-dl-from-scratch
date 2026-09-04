@@ -52,7 +52,7 @@ class MultiHeadAttention(nn.Module):
     def __init__(
         self, query_size, key_size, value_size, d_model, num_heads, dropout, bias=False, **kwargs
     ):
-        # 与上面不同 query_size 代表的是每个 query 的维度
+        # query_size 代表的是每个 query 的维度
         super().__init__(**kwargs)
         self.num_heads = num_heads
         self.W_q = nn.Linear(query_size, d_model, bias=bias)
@@ -96,7 +96,7 @@ class MultiHeadAttention(nn.Module):
         return X.reshape(X.shape[0], X.shape[1], -1)
 
 
-class FeedForwardNetwork(nn.Module):
+class PositionWiseFFN(nn.Module):
     """前馈网络的实现 FFN"""
 
     def __init__(self, ffn_num_inputs, ffn_num_hiddens, ffn_num_outputs, bias=False, **kwargs):
