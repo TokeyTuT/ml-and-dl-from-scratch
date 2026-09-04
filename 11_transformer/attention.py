@@ -1,9 +1,9 @@
 import math
-from turtle import forward
 
 import torch
 from torch import nn
 from torch.nn import functional as F
+
 
 
 def masked_softmax(X, valid_lens=None):
@@ -16,7 +16,7 @@ def masked_softmax(X, valid_lens=None):
         else:
             valid_lens = valid_lens.reshape(-1)
 
-        # valid_lens.shape -> (batch_size * query_size,)
+        # valid_lens.shape -> (batch_size *  num_queries,)
         X = X.reshape(-1, shape[-1])  # (B*Q,V)
         position = torch.arange(shape[-1], device=X.device)
         # valid_lens 已经展开为 (B*Q,)
@@ -39,23 +39,62 @@ class DotProductAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, queries, keys, values, valid_lens=None):
-        # queries,keys,values 的形状:(batch_size,查询或者键值的个,维度 d)
-        # valid_lens:(batch_size,) 或 (batch_size,query_size)
+        # queries,keys,values 的形状:(batch_size,查询或者键值的个数,维度 d)
+        # valid_lens:(batch_size,) 或 (batch_size,num_queries)
         d = queries.shape[-1]
         scores = torch.bmm(queries, keys.transpose(1, 2)) / math.sqrt(d)  # scores.shape:(B,Q,K)
         self.attention_weights = masked_softmax(scores, valid_lens)
-        return torch.bmm(self.dropout(self.attention_weights), values)  # (batch_size,query_size,d)
-
-
+        return torch.bmm(self.dropout(self.attention_weights), values)  # (batch_size,num_queries,d)
 
 
 class MultiHeadAttention(nn.Module):
     """多头注意力机制实现"""
-    def __init__(self,**kwargs):
+
+    def __init__(self, query_size, key_size, value_size,d_model,num_heads, dropout,bias=False,**kwargs):
+        # 与上面不同 query_size 代表的是每个 query 的维度
         super().__init__(**kwargs)
-        
-    def forward(self,queries,keys,values,valid_lens):
-        pass
+        self.num_heads = num_heads
+        self.W_q = nn.Linear(query_size,d_model,bias=bias)
+        self.W_k = nn.Linear(key_size,d_model,bias=bias)
+        self.W_v = nn.Linear(value_size,d_model,bias=bias)
+        self.W_o = nn.Linear(d_model,d_model,bias=bias)
+        self.attention = DotProductAttention(dropout)  # 用一个 attention 可以实现多头的效果
+
+    def forward(self, queries, keys, values, valid_lens):
+        # 将Q，k，V 最后一个维度拆分成 num_heads 分别放入不同的注意力层中计算
+        # 但是在工程实现中，为了保证并行计算，我们可以把 Q，K，V 的形状改为 
+        # (batch_size * num_heads,num_K/Q/V,d//num_heads) 放入一个 Attention 中进行计算
+        Q = self._transpose_qkv(self.W_q(queries),self.num_heads)
+        K = self._transpose_qkv(self.W_k(keys),self.num_heads)
+        V = self._transpose_qkv(self.W_v(values),self.num_heads)
+
+        # valid_lens 也要一起改变如果输入为 (batch_size,num_queries)
+        # 需要在 dim=0 上重复 num_heads 次变为 (batch_size * num_heads,num_queries)以匹配输入
+        if valid_lens is not None:
+            valid_lens = torch.repeat_interleave(
+                valid_lens,repeats=self.num_heads,dim=0
+            )
+
+        output = self.attention(Q,K,V,valid_lens)
+        return self.W_o(self._transpose_output(output,self.num_heads))
+
+
+    def _transpose_qkv(self,X,num_heads):
+        """为了多头注意力机制改变 Q、K、V 形状"""
+        X = X.reshape(X.shape[0],X.shape[1],num_heads,-1)
+        # 输出X的形状:(batch_size，num_heads，查询或者“键－值”对的个数,d/num_heads)
+        X = X.permute(0,2,1,3)
+
+        return X.reshape(-1,X.shape[2],X.shape[3]) # X.shape = (batch_size * num_heads,查询或者“键-值“对的个数，d / num_heads)
+
+
+    def _transpose_output(self,X,num_heads):
+        """为了多头注意力的输出改变形状"""
+        # 输入形状 (batch_size,num_heads,查询或“键-值“对的个数，d/num_heads)
+        # 相当于 concat 操作了
+        X = X.reshape(-1,num_heads,X.shape[1],X.shape[2])
+        X = X.permute(0,2,1,3)
+        return X.reshape(X.shape[0],X.shape[1],-1)
 
 
 if __name__ == "__main__":
@@ -79,4 +118,22 @@ if __name__ == "__main__":
     # res = atten(queries, keys, values, valid_lens)
     # print(res.shape)
     # print(res)
+
+    # X = torch.ones((2,3,4))
+    # Y = transpose_qkv(X,2)
+    # print(Y.shape)
+    # print(transpose_output(Y,2).shape)
+
+
+    # d, num_heads = 100, 5
+    # attention = MultiHeadAttention(
+    #     d, d, d, d, num_heads, 0.5
+    # )   
+    # attention.eval()
+    # batch_size, num_queries = 2, 4
+    # num_kvpairs, valid_lens = 6, torch.tensor([3, 2])
+    # X = torch.ones((batch_size, num_queries, d))
+    # Y = torch.ones((batch_size, num_kvpairs, d))
+    # print(attention(X, Y, Y, valid_lens).shape)
+
     pass

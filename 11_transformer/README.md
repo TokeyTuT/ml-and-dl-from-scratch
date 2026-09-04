@@ -5,4 +5,17 @@
 使用的 Python 版本 3.10
 
 
-- `attention.py` 中 实现了缩放点积注意力机制`:label(DotProductAttention)`
+- `attention.py` 中 实现了缩放点积注意力机制`:label(DotProductAttention)` 与多头注意力机制 `:label(MultiHeadAttention)`
+
+## Some Tricks
+
+1. 在实现多头注意力机制中
+
+
+## 命名规范
+在 `attention` 实现中，`num_queries` 代表的是查询的总次数，`query_size` 代表的每次查询的维度。
+`values` 与 `keys` 同理
+
+
+
+
