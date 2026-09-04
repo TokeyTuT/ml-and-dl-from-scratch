@@ -36,6 +36,7 @@ class DotProductAttention(nn.Module):
     def __init__(self, dropout, **kwargs):
         super().__init__(**kwargs)
         self.dropout = nn.Dropout(dropout)
+        self.attention_weights: torch.Tensor | None = None
 
     def forward(self, queries, keys, values, valid_lens=None):
         # queries,keys,values 的形状:(batch_size,查询或者键值的个数,维度 d)
@@ -126,7 +127,8 @@ class AddNorm(nn.Module):
 class PositionalEncoding(nn.Module):
     """对嵌入层后的输入进行位置编码"""
 
-    def __init__(self, d_model, dropout, max_len=10000):
+    def __init__(self, d_model, dropout, max_len=10000, **kwargs):
+        super().__init__(**kwargs)
         self.dropout = nn.Dropout(dropout)
 
         self.PE = torch.zeros((1, max_len, d_model))

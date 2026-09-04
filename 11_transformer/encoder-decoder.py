@@ -3,9 +3,6 @@ import math
 import torch
 from torch import nn
 
-import d2l
-
-
 class EncoderBlock(nn.Module):
     """Transformer 编码块的实现"""
     #在 Transformer 编码块中 所有的 query_size,key_size,value_size 都和 d_model 相同
@@ -41,9 +38,6 @@ class TransformerEncoder(nn.Module):
     def __init__(
             self,
             vocab_size,
-            query_size,
-            key_size,
-            value_size,
             num_layers=6,
             num_heads=8,
             d_model=512,
@@ -62,20 +56,12 @@ class TransformerEncoder(nn.Module):
         for _ in range(num_layers):
             self.blocks.add_module(
                 name=f"Blocks {_}",
-                module=mymodules.MultiHeadAttention(
-                    d_model,d_model,d_model,d_model,num_heads,dropout,bias=use_bias
-                )
+                module=EncoderBlock(d_model,ffn_num_hiddens,num_heads,dropout,use_bias=use_bias)
             )
 
     def forward(self,X,valid_lens):
-        X = self.embedding(X) * math.sqrt(self.d_model)
+        X = self.PE(self.embedding(X) * math.sqrt(self.d_model))
         for i, blk in enumerate(self.blocks):
             X = blk(X, valid_lens)
         return X
-
-
-    
-        
-
-
 
