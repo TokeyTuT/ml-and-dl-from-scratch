@@ -1,6 +1,7 @@
 import math
 
 import torch
+from numpy import dtype
 from torch import nn
 from torch.nn import functional as F
 
@@ -22,7 +23,7 @@ def masked_softmax(X, valid_lens=None):
         # 变成 (B*Q, 1)，让每行的有效长度与 V 个位置编号比较
         # 运用广播机制 (1, V) < (B*Q, 1) → (B*Q, V) 的布尔掩码
         mask = position[None, :] < valid_lens[:, None]
-        X = X.masked_fill(~mask, -1e6)
+        X = X.masked_fill(~mask, float("-inf"))
         return F.softmax(X.reshape(shape), dim=-1)
 
 
