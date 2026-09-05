@@ -134,3 +134,31 @@ class TransformerDecoder(nn.Module):
             X = blk(X,enc_outputs,valid_lens)
 
         return self.fn(X)
+
+
+
+
+class Transformer(nn.Module):
+    def __init__(
+            self,
+            src_vocab_size,
+            tgt_vocab_size,
+            num_layers=6,
+            num_heads=8,
+            d_model=512,
+            ffn_num_hiddens=2048,
+            dropout=0.1,
+            use_bias=False,
+            **kwargs
+            ):
+        super().__init__(**kwargs)
+        self.encoder = TransformerEncoder(
+            src_vocab_size,num_layers,num_heads,d_model,ffn_num_hiddens,dropout,use_bias
+        )
+        self.decoder = TransformerDecoder(      
+            tgt_vocab_size,num_layers,num_heads,d_model,ffn_num_hiddens,dropout,use_bias
+        )
+    def forward(self,src_X,tgt_X,src_valid_lens):
+        enc_outputs = self.encoder(src_X,src_valid_lens)
+        # 修改：交叉注意力屏蔽源序列 padding；因果掩码在解码块内部生成。
+        return self.decoder(tgt_X,enc_outputs,src_valid_lens)
